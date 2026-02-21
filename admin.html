@@ -679,8 +679,9 @@
 
                 grouped[level].forEach(data => {
                     const docsHtml = `
-                        <div style="display:flex; gap:5px; color: #666; font-size: 0.8rem;">
-                            لا يوجد ملفات
+                        <div style="display:flex; gap:8px; color: #d4af37; font-size: 0.9rem;">
+                            ${data.birthCertPath ? '<i class="fas fa-file-image" title="شهادة الميلاد"></i>' : '<i class="fas fa-file-image" style="color:#333" title="لا يوجد"></i>'}
+                            ${data.personalPhotoPath ? '<i class="fas fa-user-circle" title="الصورة الشخصية"></i>' : '<i class="fas fa-user-circle" style="color:#333" title="لا يوجد"></i>'}
                         </div>
                     `;
 
@@ -694,7 +695,7 @@
                             <td style="font-weight: bold; color: #fff;">${data.committee || '-'}</td>
                             <td><span class="badge ${data.gender === 'بنين' ? 'badge-blue' : 'badge-pink'}">${data.gender || '-'}</span></td>
                             <td><div style="font-size:0.8rem;">${data.level}</div></td>
-                            <td><div style="font-size:0.8rem; max-width: 150px; white-space: normal;">${data.address || '-'}</div></td>
+                            <td>${docsHtml}</td>
                             <td>
                                 <div style="font-size: 0.85rem; line-height: 1.4;">
                                     <div title="المتسابق"><i class="fas fa-user-circle" style="font-size: 0.7rem; color: #d4af37;"></i> ${data.phone1}</div>
@@ -711,26 +712,53 @@
             }
         }
 
+        // --- Configuration for Images & Subdomains ---
+        // غير هذا الرابط للدومين الحقيقي الخاص بك (مثلاً ahmedf.com)
+        const MAIN_IMAGES_DOMAIN = 'ahmedf.com';
+        const UPLOADS_PATH = 'uploads/';
+
         function showStudentDetails(id) {
             const data = allRegistrations.find(r => r.id === id);
             if (!data) return;
 
             const content = document.getElementById('studentDetailsContent');
+
+            // روابط الصور المباشرة (على السيرفر)
+            const birthCertUrl = data.birthCertPath ? UPLOADS_PATH + data.birthCertPath : null;
+            const personalPhotoUrl = data.personalPhotoPath ? UPLOADS_PATH + data.personalPhotoPath : null;
+
+            // رابط السبدومين الخاص بالطالب (بناءً على طلبك)
+            const studentSubdomain = data.seatNumber ? `https://${data.seatNumber}.${MAIN_IMAGES_DOMAIN}` : null;
+
+            const birthCertBtn = birthCertUrl ? `
+                <div style="display:flex; flex-direction:column; gap:5px; width:100%;">
+                    <button onclick="event.stopPropagation(); showImgPreview('${birthCertUrl}')" class="btn btn-primary" style="padding: 10px; font-size: 0.8rem;"><i class="fas fa-eye"></i> عرض الشهادة</button>
+                </div>` : '<span style="color:#666">لا يوجد</span>';
+
+            const photoBtn = personalPhotoUrl ? `
+                <div style="display:flex; flex-direction:column; gap:5px; width:100%;">
+                    <button onclick="event.stopPropagation(); showImgPreview('${personalPhotoUrl}')" class="btn btn-secondary" style="padding: 10px; font-size: 0.8rem;"><i class="fas fa-user"></i> عرض الشخصية</button>
+                </div>` : '<span style="color:#666">لا يوجد</span>';
+
             content.innerHTML = `
+                <div style="grid-column: span 2; background: rgba(212, 175, 55, 0.1); padding: 10px; border-radius: 10px; border: 1px dashed #d4af37; text-align: center; margin-bottom: 10px;">
+                    <strong style="color: #d4af37; display: block; margin-bottom: 5px;"><i class="fas fa-globe"></i> رابط السبدومين لهذا الطالب:</strong>
+                    ${studentSubdomain ? `<a href="${studentSubdomain}" target="_blank" style="color: #fff; text-decoration: underline; font-size: 0.9rem;">${studentSubdomain}</a>` : '<span style="color:#666">لم يتم تخصيص رقم جلوس بعد</span>'}
+                </div>
                 <div><strong style="color: #d4af37;">الاسم:</strong><br>${data.studentName}</div>
                 <div><strong style="color: #d4af37;">الرقم القومي:</strong><br>${data.nationalID || '-'}</div>
-                <div><strong style="color: #d4af37;">السن المحسوب:</strong><br>${data.formattedAge || (data.ageYears ? data.ageYears + ' سنة' : '-')}</div>
+                <div><strong style="color: #d4af37;">السن:</strong><br>${data.formattedAge || (data.ageYears ? data.ageYears + ' سنة' : '-')}</div>
                 <div><strong style="color: #d4af37;">رقم الجلوس:</strong><br>${data.seatNumber || '-'}</div>
                 <div><strong style="color: #d4af37;">رقم اللجنة:</strong><br>${data.committee || '-'}</div>
                 <div><strong style="color: #d4af37;">النوع:</strong><br>${data.gender || '-'}</div>
                 <div><strong style="color: #d4af37;">المستوى:</strong><br>${data.level}</div>
                 <div><strong style="color: #d4af37;">هاتف المتسابق:</strong><br>${data.phone1}</div>
                 <div><strong style="color: #d4af37;">هاتف ولي الأمر:</strong><br>${data.phone2}</div>
-                <div><strong style="color: #d4af37;">هاتف آخر:</strong><br>${data.phone3 || '-'}</div>
-                <div><strong style="color: #d4af37;">الشيخ المحفظ:</strong><br>${data.sheikhName}</div>
                 <div><strong style="color: #d4af37;">هاتف الشيخ:</strong><br>${data.sheikhPhone}</div>
                 <div style="grid-column: span 2;"><strong style="color: #d4af37;">العنوان:</strong><br>${data.address}</div>
-                <div style="grid-column: span 2;"><strong style="color: #d4af37;">تاريخ التسجيل:</strong><br>${data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString('ar-EG') : '-'}</div>
+                <div style="border-top: 1px solid #333; padding-top: 10px;">${birthCertBtn}</div>
+                <div style="border-top: 1px solid #333; padding-top: 10px;">${photoBtn}</div>
+                <div style="grid-column: span 2; font-size: 0.8rem; color: #888; border-top: 1px solid #222; margin-top: 10px; padding-top: 10px;">تاريخ التسجيل: ${data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString('ar-EG') : '-'}</div>
             `;
 
             document.getElementById('detailsModal').style.display = 'flex';

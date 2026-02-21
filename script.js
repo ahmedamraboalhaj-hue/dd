@@ -348,6 +348,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
 
+        // File selection UI feedback
+        const fileInputs = registrationForm.querySelectorAll('input[type="file"]');
+        fileInputs.forEach(input => {
+            input.addEventListener('change', (e) => {
+                const container = input.closest('.custom-file-upload');
+                const textSpan = container ? container.querySelector('.file-text') : null;
+                if (e.target.files.length > 0) {
+                    if (container) container.classList.add('has-file');
+                    if (textSpan) textSpan.textContent = 'تم اختيار: ' + e.target.files[0].name;
+                } else {
+                    if (container) container.classList.remove('has-file');
+                    if (textSpan) textSpan.textContent = input.id === 'idFile' ? 'اختر صورة شهادة الميلاد' : 'اختر الصورة الشخصية';
+                }
+            });
+        });
+
         registrationForm.addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -397,7 +413,6 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 // --- 2. Duplicate Check (Name and National ID) ---
                 if (isFirebaseConfigured && db) {
-                    // Check National ID first (Primary unique identifier)
                     const idCheck = await db.collection('registrations')
                         .where('nationalID', '==', nationalID)
                         .limit(1)
@@ -405,33 +420,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (!idCheck.empty) {
                         alert('⚠️ عذراً، هذا الرقم القومي مسجل مسبقاً في المسابقة.');
-                        if (submitBtn) {
-                            submitBtn.disabled = false;
-                            if (loader) loader.style.display = 'none';
-                            if (btnText) btnText.textContent = 'إرسال طلب التقديم';
-                        }
+                        resetSubmitBtn();
                         return;
                     }
 
-                    // Check Name (Secondary check)
                     const nameCheck = await db.collection('registrations')
                         .where('studentName', '==', studentName)
                         .limit(1)
                         .get();
 
                     if (!nameCheck.empty) {
-                        alert('⚠️ عذراً، هذا الاسم مسجل مسبقاً في أحد المستويات. لا يسمح بتكرار التسجيل لنفس الاسم.');
-                        if (submitBtn) {
-                            submitBtn.disabled = false;
-                            if (loader) loader.style.display = 'none';
-                            if (btnText) btnText.textContent = 'إرسال طلب التقديم';
-                        }
+                        alert('⚠️ عذراً، هذا الاسم مسجل مسبقاً في أحد المستويات.');
+                        resetSubmitBtn();
                         return;
                     }
                 }
 
-                // 2. Prepare Data for Firestore
-                const formData = new FormData(registrationForm);
+                // --- 3. File Upload handling ---
+                if (btnText) btnText.textContent = 'جاري رفع الصور...';
+
+                const uploadFormData = new FormData();
+                const idFile = document.getElementById('idFile')?.files[0];
+                const photoFile = document.getElementById('personalPhoto')?.files[0];
+
+                if (idFile) uploadFormData.append('birth_cert', idFile);
+                if (photoFile) uploadFormData.append('personal_photo', photoFile);
+
+                let uploadedFiles = {};
+                if (idFile || photoFile) {
+                    const uploadResponse = await fetch('upload.php', {
+                        method: 'POST',
+                        body: uploadFormData
+                    });
+                    const uploadResult = await uploadResponse.json();
+                    if (uploadResult.success) {
+                        uploadedFiles = uploadResult.files;
+                    } else {
+                        throw new Error('فشل رفع الصور: ' + uploadResult.error);
+                    }
+                }
+
+                // 4. Prepare Data for Firestore
                 const registrationData = {
                     studentName,
                     nationalID,
@@ -448,6 +477,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     sheikhName: formData.get('sheikhName'),
                     sheikhPhone: formData.get('sheikhPhone'),
                     level: formData.get('level'),
+                    birthCertPath: uploadedFiles.birth_cert || '',
+                    personalPhotoPath: uploadedFiles.personal_photo || '',
                     timestamp: firebase.firestore.FieldValue.serverTimestamp()
                 };
 
@@ -463,7 +494,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             count = counterDoc.data().count;
                         }
 
-                        // Define ranges based on gender and level
                         const ranges = {
                             'بنين': {
                                 'المستوى الأول (القرآن كاملاً)': 4000,
@@ -483,14 +513,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         const start = ranges[registrationData.gender][registrationData.level];
                         const assignedSeat = start + count;
-
-                        // 2. Calculate Committee Number (20 students per committee)
                         const committeeNumber = Math.ceil((count + 1) / 20);
 
-                        // Update counter for next student
                         transaction.set(counterRef, { count: count + 1 });
 
-                        // Add the registration document with seat number and committee
                         const newRegRef = db.collection('registrations').doc();
                         registrationData.seatNumber = assignedSeat;
                         registrationData.committee = committeeNumber;
@@ -505,7 +531,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const committeeDisplay = document.getElementById('displayCommittee');
                     if (committeeDisplay) committeeDisplay.textContent = seatNumber.committeeNumber;
 
-                    // Show Confirmation Warning Modal First
                     document.getElementById('confirmationModal').style.display = 'flex';
                 }
 
@@ -513,19 +538,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 registrationForm.reset();
                 if (agreeTerms) agreeTerms.checked = false;
 
+                // Reset file upload UI
+                fileInputs.forEach(input => {
+                    const container = input.closest('.custom-file-upload');
+                    if (container) container.classList.remove('has-file');
+                    const textSpan = container ? container.querySelector('.file-text') : null;
+                    if (textSpan) textSpan.textContent = input.id === 'idFile' ? 'اختر صورة شهادة الميلاد' : 'اختر الصورة الشخصية';
+                });
+
             } catch (error) {
                 console.error("Submission Error:", error);
                 alert('حدث خطأ أثناء الإرسال: ' + error.message);
             } finally {
-                if (submitBtn) {
-                    submitBtn.disabled = true;
-                    submitBtn.style.opacity = '0.5';
-                    submitBtn.style.cursor = 'not-allowed';
-                    if (loader) loader.style.display = 'none';
-                    if (btnText) btnText.textContent = 'إرسال طلب التقديم';
-                }
+                resetSubmitBtn();
             }
         });
+
+        function resetSubmitBtn() {
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.style.opacity = '0.5';
+                submitBtn.style.cursor = 'not-allowed';
+                if (loader) loader.style.display = 'none';
+                if (btnText) btnText.textContent = 'إرسال طلب التقديم';
+                if (agreeTerms) agreeTerms.checked = false;
+            }
+        }
     }
 
     // Modal close function

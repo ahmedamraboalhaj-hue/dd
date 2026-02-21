@@ -589,21 +589,41 @@
                                 <label for="nationalID"><i class="fas fa-id-card"></i> الرقم القومي (من اليسار)</label>
                                 <div class="input-with-action">
                                     <input type="text" id="nationalID" name="nationalID"
-                                        placeholder="سيتم تعبئته تلقائياً عند المسح" minlength="14" maxlength="14"
+                                        placeholder="تعبئة تلقائية أو يدوية" minlength="14" maxlength="14"
                                         pattern="[0-9]{14}" title="يرجى إدخال 14 رقم" required
-                                        style="direction: ltr; text-align: left;" readonly>
-                                    <button type="button" id="scanIDBtn" class="action-btn" title="تصوير شهادة الميلاد">
-                                        <i class="fas fa-camera"></i>
+                                        style="direction: ltr; text-align: left;">
+                                    <button type="button" id="scanIDBtn" class="action-btn"
+                                        title="سحب البيانات من شهادة الميلاد">
+                                        <i class="fas fa-magic"></i>
                                     </button>
                                 </div>
-                                <input type="file" id="idFile" accept="image/*" style="display: none;">
-                                <div id="ocrStatus" class="ocr-status" style="display: none;">
-                                    <span class="ocr-loader"><i class="fas fa-spinner fa-spin"></i> جاري استخراج
-                                        البيانات...</span>
-                                </div>
+                                <div id="ocrStatus" class="ocr-status" style="display: none;"></div>
                                 <div id="ageDisplay" class="age-display"
                                     style="display: none; margin-top: 10px; font-size: 0.95rem; color: #555;">
                                     <i class="fas fa-birthday-cake"></i> <span id="ageText"></span>
+                                </div>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="idFile"><i class="fas fa-file-image"></i> صورة شهادة الميلاد (مطلوب)</label>
+                                <div class="custom-file-upload">
+                                    <input type="file" id="idFile" name="idFile" accept="image/*" required>
+                                    <label for="idFile" class="file-label">
+                                        <i class="fas fa-upload"></i>
+                                        <span class="file-text">اختر صورة شهادة الميلاد</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="personalPhoto"><i class="fas fa-user-circle"></i> الصورة الشخصية
+                                    (اختياري)</label>
+                                <div class="custom-file-upload">
+                                    <input type="file" id="personalPhoto" name="personalPhoto" accept="image/*">
+                                    <label for="personalPhoto" class="file-label">
+                                        <i class="fas fa-upload"></i>
+                                        <span class="file-text">اختر الصورة الشخصية</span>
+                                    </label>
                                 </div>
                             </div>
 
