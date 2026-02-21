@@ -588,9 +588,10 @@
                             <div class="input-group">
                                 <label for="nationalID"><i class="fas fa-id-card"></i> الرقم القومي (من اليسار)</label>
                                 <div class="input-with-action">
-                                    <input type="text" id="nationalID" name="nationalID" placeholder="2/3xxxxxxxxxxxx"
-                                        minlength="14" maxlength="14" pattern="[0-9]{14}" title="يرجى إدخال 14 رقم"
-                                        required style="direction: ltr; text-align: left;">
+                                    <input type="text" id="nationalID" name="nationalID"
+                                        placeholder="سيتم تعبئته تلقائياً عند المسح" minlength="14" maxlength="14"
+                                        pattern="[0-9]{14}" title="يرجى إدخال 14 رقم" required
+                                        style="direction: ltr; text-align: left;" readonly>
                                     <button type="button" id="scanIDBtn" class="action-btn" title="تصوير شهادة الميلاد">
                                         <i class="fas fa-camera"></i>
                                     </button>

@@ -649,17 +649,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const studentNameInput = document.getElementById('studentName');
 
     if (scanIDBtn && idFile) {
-        scanIDBtn.addEventListener('click', () => idFile.click());
+        scanIDBtn.addEventListener('click', () => {
+            // Reset fields before scanning
+            nationalIDInput.value = "";
+            ocrStatus.style.display = 'block';
+            ocrStatus.innerHTML = '<span class="ocr-loader"><i class="fas fa-spinner fa-spin"></i> افتح الكاميرا أو اختر صورة واضحة...</span>';
+            idFile.click();
+        });
 
         idFile.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
-            ocrStatus.style.display = 'block';
             ocrStatus.innerHTML = '<span class="ocr-loader"><i class="fas fa-spinner fa-spin"></i> جاري تحسين جودة الصورة...</span>';
 
             try {
-                // Pre-processing: Convert image to grayscale and increase contrast using Canvas
+                // Advanced Pre-processing
                 const processedImg = await preprocessImage(file);
 
                 ocrStatus.innerHTML = '<span class="ocr-loader"><i class="fas fa-spinner fa-spin"></i> جاري قراءة البيانات... (0%)</span>';
@@ -673,55 +678,56 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
-                const text = result.data.text;
-                console.log("Improved OCR Text:", text);
+                const fullText = result.data.text;
+                console.log("OCR Extracted Text:", fullText);
 
-                // 1. National ID Extraction
-                let foundID = null;
-                const idMatches = text.match(/\d{14}/g);
-                if (idMatches) {
-                    // Usually the birth certificate has the ID in a specific format or near labels
-                    // We take the first 14-digit number that starts with 2 or 3
-                    foundID = idMatches.find(id => id.startsWith('2') || id.startsWith('3'));
-                    if (!foundID) foundID = idMatches[0];
-                }
+                // --- 1. National ID Extraction ---
+                // Clean the text from any spaces between digits
+                const digitsOnly = fullText.replace(/\s/g, '');
+                const idMatch = digitsOnly.match(/\d{14}/);
+                let foundID = idMatch ? idMatch[0] : null;
 
-                // 2. Name Extraction (More robust heuristic)
-                const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
-                let detectedName = "";
+                // --- 2. Advanced Name Extraction ---
+                const cleanLines = fullText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                let childFirstName = "";
+                let fatherName = "";
 
-                // Key terms in Egyptian Birth Certificate
-                const nameLabels = ['اسم المولود', 'الاسم بالكامل', 'اسم الطال', 'الاسم رباع', 'الاسم :'];
+                for (let i = 0; i < cleanLines.length; i++) {
+                    const line = cleanLines[i];
 
-                for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i];
-                    const hasLabel = nameLabels.some(label => line.includes(label));
+                    // Look for Child's Name (اسم المولود)
+                    if (line.includes('اسم المولود') || line.includes('المولود')) {
+                        childFirstName = line.replace(/.*(اسم المولود|المولود)[:\/\- ]+/, '').trim();
+                        // Filter for Arabic only
+                        childFirstName = childFirstName.replace(/[^\u0600-\u06FF\s]/g, '').trim();
 
-                    if (hasLabel) {
-                        // Try to extract from current line
-                        let potential = line.replace(/.*(اسم المولود|الاسم[:\/\-]*)*/, '').trim();
-                        potential = potential.replace(/[^\u0600-\u06FF\s]/g, '').trim();
+                        // If current line is too short, check next line
+                        if (childFirstName.split(' ').length < 1 && i + 1 < cleanLines.length) {
+                            childFirstName = cleanLines[i + 1].replace(/[^\u0600-\u06FF\s]/g, '').trim();
+                        }
+                    }
 
-                        if (potential.split(' ').length >= 3) {
-                            detectedName = potential;
-                            break;
-                        } else if (i + 1 < lines.length) {
-                            // Name might be on the next line
-                            let next = lines[i + 1].replace(/[^\u0600-\u06FF\s]/g, '').trim();
-                            if (next.split(' ').length >= 3) {
-                                detectedName = next;
-                                break;
-                            }
+                    // Look for Father's Name (اسم الأب)
+                    if (line.includes('اسم الأب') || line.includes('الأب')) {
+                        fatherName = line.replace(/.*(اسم الأب|الأب)[:\/\- ]+/, '').trim();
+                        fatherName = fatherName.replace(/[^\u0600-\u06FF\s]/g, '').trim();
+
+                        if (fatherName.split(' ').length < 2 && i + 1 < cleanLines.length) {
+                            fatherName = cleanLines[i + 1].replace(/[^\u0600-\u06FF\s]/g, '').trim();
                         }
                     }
                 }
 
-                // Final check: if no name found via labels, look for any line with 4+ Arabic words
-                if (!detectedName) {
-                    for (const line of lines) {
+                // Fallback for Name if specific labels failed
+                let detectedFullName = "";
+                if (childFirstName && fatherName) {
+                    detectedFullName = (childFirstName + ' ' + fatherName).trim();
+                } else {
+                    // Look for any line that looks like a 4-segment Arabic name
+                    for (const line of cleanLines) {
                         const words = line.replace(/[^\u0600-\u06FF\s]/g, '').trim().split(/\s+/);
                         if (words.length >= 4) {
-                            detectedName = words.join(' ');
+                            detectedFullName = words.slice(0, 4).join(' ');
                             break;
                         }
                     }
@@ -731,23 +737,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (foundID) {
                     nationalIDInput.value = foundID;
                     nationalIDInput.dispatchEvent(new Event('input'));
-                    feedback += `<div style="color: #2e7d32; margin-bottom: 5px; font-weight: bold;"><i class="fas fa-check-circle"></i> تم التقاط الرقم القومي: ${foundID}</div>`;
+                    feedback += `<div style="color: #2e7d32; font-weight: bold;"><i class="fas fa-check-circle"></i> تم التقاط الرقم القومي بنجاح</div>`;
                 }
 
-                if (detectedName) {
-                    studentNameInput.value = detectedName;
-                    feedback += `<div style="color: #2e7d32; font-weight: bold;"><i class="fas fa-check-circle"></i> الاسم المكتشف: ${detectedName}</div>`;
+                if (detectedFullName) {
+                    studentNameInput.value = detectedFullName;
+                    feedback += `<div style="color: #2e7d32; font-weight: bold;"><i class="fas fa-check-circle"></i> تم التقاط الاسم: ${detectedFullName}</div>`;
                 }
 
-                if (!foundID && !detectedName) {
-                    ocrStatus.innerHTML = '<div style="color: #d32f2f; padding: 10px; background: rgba(211, 47, 47, 0.05); border-radius: 8px;"><i class="fas fa-exclamation-triangle"></i> لم نتمكن من قراءة الشهادة بوضوح. يرجى التأكد من:<br>1. وضع الشهادة تحت إضاءة قوية.<br>2. ثبات اليد أثناء التصوير.<br>3. إدخال البيانات يدوياً إذا استمرت المشكلة.</div>';
+                if (!foundID || !detectedFullName) {
+                    feedback = `<div style="color: #d32f2f; background: rgba(211, 47, 47, 0.05); padding: 10px; border-radius: 8px; font-size: 0.9rem;">
+                                    <i class="fas fa-exclamation-triangle"></i> حدث خطأ في القراءة التلقائية.<br>
+                                    يرجى التأكد من أن الصورة واضحة تماماً ولا يوجد بها اهتزاز، ثم حاول مرة أخرى.
+                                </div>`;
                 } else {
-                    ocrStatus.innerHTML = feedback + '<div style="font-size: 0.8rem; color: #666; margin-top: 5px;">* يرجى مراجعة البيانات المستخرجة بدقة قبل الإرسال.</div>';
+                    feedback += '<div style="font-size: 0.8rem; color: #666; margin-top: 5px;">* برجاء التأكد من صحة البيانات المستخرجة.</div>';
                 }
+
+                ocrStatus.innerHTML = feedback;
 
             } catch (err) {
                 console.error("OCR Error:", err);
-                ocrStatus.innerHTML = '<div style="color: #d32f2f;"><i class="fas fa-times-circle"></i> حدث خطأ أثناء المعالجة. يرجى إدخال البيانات يدوياً.</div>';
+                ocrStatus.innerHTML = '<div style="color: #d32f2f;"><i class="fas fa-times-circle"></i> تعذر معالجة الصورة. يرجى المحاولة بصورة أكثر وضوحاً.</div>';
             }
         });
     }
